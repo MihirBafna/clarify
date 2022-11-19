@@ -21,22 +21,21 @@ def construct_celllevel_graph(coordinate_df, k, get_edges=False):   # Top k clos
     adjacency = np.zeros(shape=(len(coordinate_df), k),dtype=int) # shape = (numcells, numneighbors of cell)
     coords = np.vstack([coordinate_df["X"].values,coordinate_df["Y"].values]).T
 
-    for i in tqdm(range(len(coordinate_df)), desc=f"Calculating top {k} closest neighbors for each cell"):
+    edges = None
+    edge_x = []
+    edge_y = []
+
+    for i in tqdm(range(len(coordinate_df)), desc=f"2. Construct Cell-Level Graph from ST Data", colour="cyan", position=1):
         cell_id = coordinate_df["Cell_ID"][i]
+        x0, y0 = coordinate_df["X"].values[i],coordinate_df["Y"].values[i]
         candidate_cell = coords[i]
         candidate_neighbors = coords
         euclidean_distances = np.linalg.norm(candidate_neighbors - candidate_cell,axis=1)
         neighbors = np.argsort(euclidean_distances)[1:k+1]
         adjacency[i] = neighbors
         assert i not in adjacency[i]
-        
-    edges = None
-    if get_edges:
-        edge_x = []
-        edge_y = []
-        for cell,adj in enumerate(tqdm(adjacency,desc=f"Getting the {k} edges of each cell")):
-            x0, y0 = coordinate_df["X"].values[cell],coordinate_df["Y"].values[cell]
-            for ncell in adjacency[cell]:
+        if get_edges:
+            for ncell in adjacency[i]:
                 x1, y1 = coordinate_df["X"].values[ncell],coordinate_df["Y"].values[ncell]
                 edge_x.append(x0)
                 edge_x.append(x1)
@@ -44,7 +43,19 @@ def construct_celllevel_graph(coordinate_df, k, get_edges=False):   # Top k clos
                 edge_y.append(y0)
                 edge_y.append(y1)
                 edge_y.append(None)
-        edges=[edge_x,edge_y]
+        
+    edges=[edge_x,edge_y]
+    
+        # for cell,adj in enumerate(tqdm(adjacency,desc=f"Getting the {k} edges of each cell", colour="cyan", position=1)):
+        #     x0, y0 = coordinate_df["X"].values[cell],coordinate_df["Y"].values[cell]
+        #     for ncell in adjacency[cell]:
+        #         x1, y1 = coordinate_df["X"].values[ncell],coordinate_df["Y"].values[ncell]
+        #         edge_x.append(x0)
+        #         edge_x.append(x1)
+        #         edge_x.append(None)
+        #         edge_y.append(y0)
+        #         edge_y.append(y1)
+        #         edge_y.append(None)
                 
     return adjacency,edges
 
@@ -69,7 +80,7 @@ def construct_genelevel_graph(disjoint_grns, celllevel_adj_list, node_type = "in
 
 
     grn_graph_list = []
-    for cellnum, grn in enumerate(tqdm(disjoint_grns, desc="Combining individual GRNs")):
+    for cellnum, grn in enumerate(tqdm(disjoint_grns, desc="3a. Combining individual GRNs", colour="cyan")):
         G =  nx.from_numpy_matrix(grn)
         grn_graph_list.append(G)
         for i in range(numgenes):
@@ -81,7 +92,7 @@ def construct_genelevel_graph(disjoint_grns, celllevel_adj_list, node_type = "in
     gene_level_graph = nx.relabel_nodes(union_of_grns, num2gene)  # relabel nodes to actual gene names
 
     for cell, neighborhood in enumerate(tqdm(celllevel_adj_list,\
-        desc="Constructing Gene-Level Graph")):                   # for each cell in the ST data
+        desc="3b. Constructing Gene-Level Graph", colour="cyan")): # for each cell in the ST data
         for genenum1 in range(numgenes):                            # for each gene in the cell                         45
             node1 = f"Cell{cell}_Gene{genenum1}"
             for ncell in neighborhood:                                  # for each neighborhood cell adjacent to cell   5
