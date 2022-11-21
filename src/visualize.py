@@ -3,9 +3,7 @@ import pandas as pd
 import plotly.io as pio
 import plotly.express as px
 import plotly.graph_objects as go
-from tqdm import tqdm
 import igviz as ig
-from scipy import sparse
 import networkx as nx
 from plotly.offline import plot, iplot, init_notebook_mode
 from sklearn.model_selection import train_test_split

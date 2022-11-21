@@ -1,22 +1,18 @@
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-from scipy import sparse
 import networkx as nx
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
-from umap import UMAP
+import time
+from rich.progress import track
+from rich.table import Table
+from rich.console import Console
+import random
 import sys
 sys.path.append('./submodules/CeSpGRN/src/')
 from submodules.CeSpGRN.src import *
 from submodules.CeSpGRN.src import kernel
 from submodules.CeSpGRN.src import g_admm as CeSpGRN
-import time
-from rich.progress import track
-from rich.table import Table
-from rich.console import Console
-
-import random
 
 
 def convert_adjacencylist2edgelist(adj_list): # do we need to account for repeat edges?
