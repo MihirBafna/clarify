@@ -13,15 +13,19 @@ from submodules.CeSpGRN.src import kernel
 from submodules.CeSpGRN.src import g_admm as CeSpGRN
 import time
 from rich.progress import track
+from rich.table import Table
+from rich.console import Console
+
+import random
 
 
 def convert_adjacencylist2edgelist(adj_list): # do we need to account for repeat edges?
     '''
     Converts adjacency list to edge list format for pytorch geometric processing.
     
-    adj_list: nd.array(shape=(numnodes, numneighbors)) : adjacency list representation
+    :adj_list: nd.array(shape=(numnodes, numneighbors)) : adjacency list representation
     
-    return: edge_list: nd.array(shape=(2, numnodes * numneighbors))
+    :return: nd.array(shape=(2, numnodes * numneighbors))
     '''
     
     edge_list = []
@@ -34,19 +38,68 @@ def convert_adjacencylist2edgelist(adj_list): # do we need to account for repeat
 
 
 
-def infer_initial_grns(data_df, num_genespercell, cespgrn_hyperparams):
+def select_LRgenes(data_df, num_genespercell, lr_database = 0):
+    '''
+    Selects LR and relevant background genes to be included for GRN inference.
+    
+    :data_df: pd.DataFrame : represents the spatial data and contains the following columns ["Cell_ID", "X", "Y", "Cell_Type", "Gene 1", ..., "Gene n"]
+    :num_genespercell: int : represents the number of genes to be included for each Cell-Specific GRN
+    :lr_database: int: 0/1/2 corresponding to LR database (0: CellTalkDB)
+    
+    :return : pd.DataFrame with relevant gene columns preserved
+    '''
+    if lr_database == 0:
+        sample_counts = data_df.drop(["Cell_ID", "X", "Y", "Cell_Type"], axis = 1)
+        lr_df = pd.read_csv("../data/celltalk_human_lr_pair.txt", sep="\t")
+        
+        receptors = set(lr_df["receptor_gene_symbol"].to_list())
+        ligands = set(lr_df["ligand_gene_symbol"].to_list())
+        real2uppercase = {x:x.upper() for x in sample_counts.columns}
+        uppercase2real = {upper:real for real,upper in real2uppercase.items()}
+        candidate_genes = set(np.vectorize(real2uppercase.get)(sample_counts.columns.to_numpy()))
+        
+        selected_ligands = candidate_genes.intersection(ligands)
+        selected_receptors = candidate_genes.intersection(receptors)
+        
+        print(f"Found {len(selected_ligands)} ligands and {len(selected_receptors)} receptors to be included in the {num_genespercell} selected genes per cell. \n")
+        
+        
+        
+        num_genesleft = num_genespercell - len(selected_ligands) - len(selected_receptors)
+        candidate_genesleft = candidate_genes - selected_ligands - selected_receptors
+        
+        selected_randomgenes = set(random.sample(tuple(candidate_genesleft), num_genesleft))
+        
+        selected_genes = list(selected_randomgenes | selected_ligands | selected_receptors)
+        
+        selected_columns = ["Cell_ID", "X", "Y", "Cell_Type"] + np.vectorize(uppercase2real.get)(selected_genes).tolist()
+        selected_df = data_df[selected_columns]
+        
+        console = Console()
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Selected Ligands", style="cyan")
+        table.add_column("Selected Receptors", style="deep_pink3")
+        table.add_column("Selected Random Genes", justify="right")
+        table.add_row("\n".join(selected_ligands),"\n".join(selected_receptors),"\n".join(selected_randomgenes))
+        console.print(table)
+        
+        return selected_df, selected_ligands|selected_receptors
+    else:
+        raise Exception("Invalid lr_database type")
+    
+
+def infer_initial_grns(data_df, cespgrn_hyperparams):
     
     '''
     Infers the starting cell specific GRNs with CeSpGRN submodule.
     
-    data_df: pd.DataFrame : represents the spatial data and contains the following columns ["Cell_ID", "X", "Y", "Cell_Type", "Gene 1", ..., "Gene n"]
-    num_genespercell: int: number of genes to be included in gene regulatory network for a specific cell
-    cespgrn_hyperparams: dict(): dictionary of CeSpGRN hyperparameters
+    :data_df: pd.DataFrame : represents the spatial data and contains the following columns ["Cell_ID", "X", "Y", "Cell_Type", "Gene 1", ..., "Gene n"]
+    :cespgrn_hyperparams: dict(): dictionary of CeSpGRN hyperparameters
     
-    return: grns: nd.array(shape=(numcells, numgenespercell, numgenespercell))
+    :return: nd.array(shape=(numcells, numgenespercell, numgenespercell))
     '''
     
-    counts = data_df.drop(["Cell_ID", "X", "Y", "Cell_Type"], axis = 1).values[:,:num_genespercell]
+    counts = data_df.drop(["Cell_ID", "X", "Y", "Cell_Type"], axis = 1).values
     # print(f"GRNs are dimension ({counts.shape[1]} by {counts.shape[1]}) for each of the {counts.shape[0]} cells\n")
     
     # Normalize Counts??? 
@@ -70,6 +123,7 @@ def infer_initial_grns(data_df, num_genespercell, cespgrn_hyperparams):
     cespgrn = CeSpGRN.G_admm_minibatch(X=counts[:, None, :], K=K, pre_cov=empir_cov, batchsize = 120)
     grns = cespgrn.train(max_iters=max_iters, n_intervals=100, lamb=lamb)
     
+
     # print("Total time inferring GRNs: {:.2f} sec".format(time.time() - start_time))
     # print()
 
@@ -81,11 +135,11 @@ def construct_celllevel_graph(data_df, k, get_edges=False):   # Top k closest ne
     '''
     Constructs new cell graph with spatial proximity edges based on kNN.
     
-    data_df: pd.DataFrame : represents the spatial data and contains the following columns ["Cell_ID", "X", "Y"]
-    k: int: Number of nearest neighbors to construct spatial edges for
-    get_edges: boolean:  True to return edge_trace (for visualization purposes)
+    :data_df: pd.DataFrame : represents the spatial data and contains the following columns ["Cell_ID", "X", "Y"]
+    :k: int: Number of nearest neighbors to construct spatial edges for
+    :get_edges: boolean:  True to return edge_trace (for visualization purposes)
     
-    return: Cell_level_adjacency, edge list
+    :return: Cell_level_adjacency, edge list
     '''
     
     adjacency = np.zeros(shape=(len(data_df), k),dtype=int) # shape = (numcells, numneighbors of cell)
@@ -137,11 +191,11 @@ def construct_genelevel_graph(disjoint_grns, celllevel_adj_list, node_type = "in
     '''
     Constructs gene level graph.
     
-    disjoint_grns: nd.array(shape=(numcells, numgenes, numgenes)) : np array of cell-specific GRNs (output of CeSpGRN)
-    celllevel_adj_list: nd.array(shape=(numcells, k)): adjacency list of cell level graph (output of preprocess.construct_celllevel_graph)
-    node_type: str: Either "int" or "str" to set for the node labels
+    :disjoint_grns: nd.array(shape=(numcells, numgenes, numgenes)) : np array of cell-specific GRNs (output of CeSpGRN)
+    :celllevel_adj_list: nd.array(shape=(numcells, k)): adjacency list of cell level graph (output of preprocess.construct_celllevel_graph)
+    :node_type: str: Either "int" or "str" to set for the node labels
     
-    return: nx.Graph object (gene level), mapping between integer node names to gene names, reverse mapping
+    :return: nx.Graph object (gene level), mapping between integer node names to gene names, reverse mapping
     '''
     
     numgenes = disjoint_grns[0].shape[0]

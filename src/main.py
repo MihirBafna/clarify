@@ -20,14 +20,17 @@ def parse_arguments():
                     help="Input directory path where ST data is stored")
     parser.add_argument("-o", "--outputdirpath", type=str,
                     help="Output directory path where results will be stored ")
-
+    parser.add_argument("-l", "--lrdatabase", type=int, default=0,
+                    help="0/1/2 for which Ligand-Receptor Database to use")
     args = parser.parse_args()
     return args
 
 
+
 def preprocess(st_data, num_genespercell, num_nearestneighbors, cespgrn_hyperparameters):    
         
-    grns = pre.infer_initial_grns(st_data, num_genespercell, cespgrn_hyperparameters) # shape (ncells, ngenes, ngenes)
+    # 1. Infer initial GRNs with CeSpGRN
+    grns = pre.infer_initial_grns(st_data, cespgrn_hyperparameters) # shape (ncells, ngenes, ngenes)
     # grns = np.load("../out/preprocessing_output/seqfish_grns.npy")
 
     # 2. Construct Cell-Level Graph from ST Data
@@ -40,6 +43,7 @@ def preprocess(st_data, num_genespercell, num_nearestneighbors, cespgrn_hyperpar
 
 
 
+
 def main():
     print("\n#------------------------------ Loading in data/arguments ----------------------------#\n")
 
@@ -49,8 +53,13 @@ def main():
     output_dir_path = args.outputdirpath
     num_nearestneighbors = args.nearestneighbors
     num_genespercell = args.numgenespercell
-
+    LR_database = args.lrdatabase
+    
     st_data = pd.read_csv(input_dir_path, index_col=None)
+    assert {"Cell_ID", "X", "Y", "Cell_Type"}.issubset(set(st_data.columns.to_list()))
+    
+    numcells, totalnumgenes = st_data.shape[0], st_data.shape[1] - 4
+    print(f"{numcells} Cells & {totalnumgenes} Total Genes\n")
     
     cespgrn_hyperparameters = {
         "bandwidth" : 0.1,
@@ -59,20 +68,17 @@ def main():
         "max_iters" : 1000
     }
     
-    assert {"Cell_ID", "X", "Y", "Cell_Type"}.issubset(set(st_data.columns.to_list()))
+    print(f"Hyperparameters:\n # of Nearest Neighbors: {num_nearestneighbors}\n # of Genes per Cell: {num_genespercell}\n")
     
-    numcells, totalnumgenes = st_data.shape[0], st_data.shape[1] - 4
-    print(st_data.head())
-    print(f"{numcells} Cells & {totalnumgenes} Total Genes")
-    print(f"\nHyperparameters:\n # of Nearest Neighbors: {num_nearestneighbors}\n # of Genes per Cell: {num_genespercell}")
-    
+    selected_st_data, selected_lrs = pre.select_LRgenes(st_data, num_genespercell, 0)
+
     print("\n#------------------------------------ Preprocessing ----------------------------------#\n")
     
     preprocess_output_path = os.path.join(output_dir_path,"preprocessing_output")
     if not os.path.exists(preprocess_output_path):
         os.mkdir(preprocess_output_path)
 
-    celllevel_adj, genelevel_graph, num2gene, gene2num, grns = preprocess(st_data,num_genespercell, num_nearestneighbors, cespgrn_hyperparameters)
+    celllevel_adj, genelevel_graph, num2gene, gene2num, grns = preprocess(selected_st_data,num_genespercell, num_nearestneighbors, cespgrn_hyperparameters)
         
     celllevel_edgelist = pre.convert_adjacencylist2edgelist(celllevel_adj)
     genelevel_edgelist = nx.to_pandas_edgelist(genelevel_graph).drop(["weight"], axis=1).to_numpy().T
@@ -84,7 +90,7 @@ def main():
     np.save(os.path.join(preprocess_output_path, "genelevel_edgelist.npy"),genelevel_edgelist)
     np.save(file = os.path.join(preprocess_output_path, "initial_grns.npy"), arr = grns) 
 
-
+    print()
 
 if __name__ == "__main__":
     main()
