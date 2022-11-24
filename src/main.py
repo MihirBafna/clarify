@@ -6,10 +6,17 @@ import argparse
 from rich.table import Table
 from rich.console import Console
 import torch
+import time
 
 import preprocessing as preprocessing
 import training as training
+import models as models
 import visualize as vis
+
+from torch_geometric.nn import GAE
+
+
+debug = True
 
 
 def parse_arguments():
@@ -31,35 +38,69 @@ def parse_arguments():
 
 
 
-def preprocess(st_data, num_nearestneighbors, cespgrn_hyperparameters):    
+def preprocess(st_data, num_nearestneighbors, lrgene_ids, cespgrn_hyperparameters):    
         
     # 1. Infer initial GRNs with CeSpGRN
-    grns = preprocessing.infer_initial_grns(st_data, cespgrn_hyperparameters) # shape (ncells, ngenes, ngenes)
-    # grns = np.load("../out/preprocessing_output/seqfish_grns.npy")
+    if debug: # skip inferring GRNs while debugging
+        print("1. Skipping CeSpGRN inference (for debug mode)")
+        grns = np.load("../out/preprocessing_output/seqfish_grns.npy")
+    else:
+        grns = preprocessing.infer_initial_grns(st_data, cespgrn_hyperparameters) # shape (ncells, ngenes, ngenes)
 
     # 2. Construct Cell-Level Graph from ST Data
     celllevel_adj, _ = preprocessing.construct_celllevel_graph(st_data, num_nearestneighbors, get_edges=False)
 
     #  3. Construct Gene-Level Graph from ST Data + GRNs 
-    gene_level_graph, num2gene, gene2num = preprocessing.construct_genelevel_graph(grns, celllevel_adj, node_type="int")
+    gene_level_graph, num2gene, gene2num = preprocessing.construct_genelevel_graph(grns, celllevel_adj, node_type="int", lrgenes = lrgene_ids)
+    
+    # 4. Generate Gene Feature vectors
+    if debug:
+        gene_features, genefeaturemodel = None,None
+    else:
+        gene_features, genefeaturemodel = preprocessing.get_gene_features(gene_level_graph, type="node2vec")
+    
 
-    return celllevel_adj, gene_level_graph, num2gene, gene2num, grns
+    return celllevel_adj, gene_level_graph, num2gene, gene2num, grns, gene_features, genefeaturemodel
 
 
 
-def train(data, hyperparams = None):
+def train_clarifyGAE(data, hyperparams = None):
     num_cells, num_cellfeatures = data[0].x.shape[0], data[0].x.shape[1]
+    num_genes, num_genefeatures = data[1].x.shape[0], data[1].x.shape[1]
     hidden_dim = hyperparams["concat_hidden_dim"] // 2
     num_genespercell = hyperparams["num_genespercell"]
+
+    cellEncoder = models.GraphEncoder(num_cellfeatures, hidden_dim)
+    geneEncoder = models.SubgraphEncoder(num_features=num_genefeatures, hidden_dim=hidden_dim, num_vertices = num_cells, num_subvertices = num_genespercell)
     
-    cellEncoder = training.GraphEncoder(num_cellfeatures, hidden_dim)
-    geneEncoder = training.SubgraphEncoder(hidden_dim, num_vertices = num_cells, num_subvertices = num_genespercell)
-    multiviewGAE = training.MultiviewGAE(SubgraphEncoder = geneEncoder, GraphEncoder = cellEncoder)
+    multiviewGAE = models.MultiviewGAE(SubgraphEncoder = geneEncoder, GraphEncoder = cellEncoder)
     
     if hyperparams["optimizer"] == "adam":
         hyperparams["optimizer"] = torch.optim.Adam(multiviewGAE.parameters(), lr=0.01, weight_decay=5e-4),
     
-    training.train_model(model=multiviewGAE, data=data, hyperparameters = hyperparams)
+    training.train(model=multiviewGAE, data=data, hyperparameters = hyperparams)
+
+
+
+def train_clarifyGAE_pytorch(data, hyperparams = None):
+    num_cells, num_cellfeatures = data[0].x.shape[0], data[0].x.shape[1]
+    num_genes, num_genefeatures = data[1].x.shape[0], data[1].x.shape[1]
+    hidden_dim = hyperparams["concat_hidden_dim"] // 2
+    num_genespercell = hyperparams["num_genespercell"]
+
+    cellEncoder = models.GraphEncoder(num_cellfeatures, hidden_dim)
+    geneEncoder = models.SubgraphEncoder(num_features=num_genefeatures, hidden_dim=hidden_dim, num_vertices = num_cells, num_subvertices = num_genespercell)
+    
+    multiviewEncoder = models.MultiviewEncoder(SubgraphEncoder = geneEncoder, GraphEncoder = cellEncoder)
+    gae = GAE(multiviewEncoder)
+
+    # print(gae(data[0].x))
+    
+    if hyperparams["optimizer"] == "adam":
+        hyperparams["optimizer"] = torch.optim.Adam(gae.parameters(), lr=0.01),
+    
+    training.train_gae(model=gae, data=data, hyperparameters = hyperparams)
+
 
 
 def main():
@@ -78,6 +119,7 @@ def main():
 
     
     if "preprocess" in mode:
+        start_time = time.time()
         print("\n#------------------------------ Loading in data/arguments ----------------------------#\n")
         st_data = pd.read_csv(input_dir_path, index_col=None)
         assert {"Cell_ID", "X", "Y", "Cell_Type"}.issubset(set(st_data.columns.to_list()))
@@ -94,7 +136,7 @@ def main():
         
         print(f"Hyperparameters:\n # of Nearest Neighbors: {num_nearestneighbors}\n # of Genes per Cell: {num_genespercell}\n")
         
-        selected_st_data, selected_lrs = preprocessing.select_LRgenes(st_data, num_genespercell, LR_database)
+        selected_st_data, lrgene2id = preprocessing.select_LRgenes(st_data, num_genespercell, LR_database)
 
         print("\n#------------------------------------ Preprocessing ----------------------------------#\n")
         
@@ -102,9 +144,9 @@ def main():
             os.mkdir(preprocess_output_path)
 
         # include X,Y in features??
-        celllevel_features = st_data.drop(["Cell_ID", "Cell_Type"], axis = 1).values
+        celllevel_features = st_data.drop(["Cell_ID", "Cell_Type", "X", "Y"], axis = 1).values
 
-        celllevel_adj, genelevel_graph, num2gene, gene2num, grns = preprocess(selected_st_data, num_nearestneighbors, cespgrn_hyperparameters)
+        celllevel_adj, genelevel_graph, num2gene, gene2num, grns, genelevel_features, genelevel_feature_model = preprocess(selected_st_data, num_nearestneighbors,lrgene2id.values(), cespgrn_hyperparameters)
             
         celllevel_edgelist = preprocessing.convert_adjacencylist2edgelist(celllevel_adj)
         genelevel_edgelist = nx.to_pandas_edgelist(genelevel_graph).drop(["weight"], axis=1).to_numpy().T
@@ -112,11 +154,17 @@ def main():
         assert celllevel_edgelist.shape == (2, celllevel_adj.shape[0] * celllevel_adj.shape[1])
         
         np.save(os.path.join(preprocess_output_path, "celllevel_adjacencylist.npy"),celllevel_adj)
+        np.save(os.path.join(preprocess_output_path, "celllevel_adjacencymatrix.npy"),preprocessing.convert_adjacencylist2adjacencymatrix(celllevel_adj))
         np.save(os.path.join(preprocess_output_path, "celllevel_edgelist.npy"),celllevel_edgelist)
         np.save(os.path.join(preprocess_output_path, "celllevel_features.npy"),celllevel_features)
         np.save(os.path.join(preprocess_output_path, "genelevel_edgelist.npy"),genelevel_edgelist)
         np.save(file = os.path.join(preprocess_output_path, "initial_grns.npy"), arr = grns) 
-        print()
+        
+        if not debug:
+            np.save(os.path.join(preprocess_output_path, "genelevel_features.npy"), genelevel_features) 
+            genelevel_feature_model.save(os.path.join(preprocess_output_path, "genelevel_feature_model")) 
+
+        print(f"Finished preprocessing in {(time.time() - start_time)/60} mins.\n")
     
 
     if "train" in mode:
@@ -127,7 +175,7 @@ def main():
         table = Table(show_header=True, header_style="bold")
         table.add_column("Cell Level PyG Data", style="cyan")
         table.add_column("Gene Level PyG Data", style="deep_pink3")
-        table.add_row(str(celllevel_data), str(genelevel_data))
+        table.add_row(str(celllevel_data), "".join(str(genelevel_data).split("\n")))
         console.print(table)
         
         if not os.path.exists(training_output_path):
@@ -137,15 +185,18 @@ def main():
         print("\n#------------------------------- ClarifyGAE Training -----------------------------#\n")
 
         hyperparameters = {
-            "num_genespercell":num_genespercell
+            "num_genespercell": num_genespercell,
             "concat_hidden_dim": 64,
             "optimizer" : "adam",
-            "criterion" : torch.nn.MSELoss(),
+            "criterion" : torch.nn.BCELoss(),
             "num_epochs": 400
         }
 
-        train_model((celllevel_data, genelevel_data), hyperparameters)
+        data = (celllevel_data, genelevel_data)
         
+        # train_clarifyGAE(data, hyperparameters)
+        train_clarifyGAE_pytorch(data, hyperparameters)
+
 
     return
 
