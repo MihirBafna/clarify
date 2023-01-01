@@ -17,15 +17,20 @@ class SubgraphEncoder(torch.nn.Module):
         self.num_vertices = num_vertices
         self.num_subvertices = num_subvertices
 
-
-    def forward(self, x, edge_index):
+    def embed(self, x, edge_index):
         x = self.conv1(x, edge_index)
         x = x.relu()
         x = self.conv2(x, edge_index)
+        return x
+
+    def forward(self, x, edge_index):
+        embeddings = self.embed(x,edge_index)
         # x = F.dropout(x, p=self.dropout, training=self.is_training)
+        x=embeddings
         x = x.view(x.shape[0]//self.num_subvertices, x.shape[1] * self.num_subvertices) # For every vertex, concatenate every subvertex's embedding (belonging to that vertex) together into one new "vertex" embedding
         x = self.linear(x)                                                              # reduce the concatenated vertex embedding dimension back down to hidden_dim
-        return x
+        return x, embeddings
+    
 
 
 class GraphEncoder(torch.nn.Module):
@@ -62,15 +67,15 @@ class MultiviewEncoder(torch.nn.Module):
 
 
     def forward(self, x_c, x_g, edge_index_c, edge_index_g):
-        Z_gg = self.encoder_g(x_g, edge_index_g)
-        Z_cc = self.encoder_c(x_c, edge_index_c)
-        Z = torch.cat((Z_cc,Z_gg),dim=1)
-        print(torch.max(Z), torch.min(Z))
-        print(Z)
+        Z_g, gene_embeddings = self.encoder_g(x_g, edge_index_g)
+        Z_c = self.encoder_c(x_c, edge_index_c)
+        Z = torch.cat((Z_c,Z_g),dim=1)
+        # print(torch.max(Z), torch.min(Z))
+        # print(Z)
 
-        assert Z.shape[1] == 2 * Z_gg.shape[1]
+        assert Z.shape[1] == 2 * Z_g.shape[1]
 
-        return Z
+        return Z, Z_c, gene_embeddings
     
 
 
@@ -88,8 +93,8 @@ class MultiviewGAE(torch.nn.Module):
         Z_gg = self.encoder_g(x_g, edge_index_g)
         Z_cc = self.encoder_c(x_c, edge_index_c)
         Z = torch.cat((Z_cc,Z_gg),dim=1)
-        print(torch.max(Z), torch.min(Z))
-        print(Z)
+        # print(torch.max(Z), torch.min(Z))
+        # print(Z)
 
         assert Z.shape[1] == 2 * Z_gg.shape[1]
 

@@ -22,7 +22,7 @@ debug = True
 def parse_arguments():
     parser = argparse.ArgumentParser(description='clarifyGAE arguments')
     parser.add_argument("-m", "--mode", type=str, default = "train",
-        help="clarifyGAE mode: preprocess|train|test")
+        help="clarifyGAE mode: preprocess,train,test")
     parser.add_argument("-n", "--numgenespercell", type=int, default = 45,
             help="Number of genes in each gene regulatory network")
     parser.add_argument("-k", "--nearestneighbors", type=int, default = 5,
@@ -33,6 +33,8 @@ def parse_arguments():
                     help="Output directory path where results will be stored ")
     parser.add_argument("-l", "--lrdatabase", type=int, default=0,
                     help="0/1/2 for which Ligand-Receptor Database to use")
+    parser.add_argument("-s", "--studyname", type=str,
+        help="clarifyGAE study name")
     args = parser.parse_args()
     return args
 
@@ -64,7 +66,7 @@ def preprocess(st_data, num_nearestneighbors, lrgene_ids, cespgrn_hyperparameter
 
 
 
-def train_clarifyGAE(data, hyperparams = None):
+def build_clarifyGAE(data, hyperparams = None):
     num_cells, num_cellfeatures = data[0].x.shape[0], data[0].x.shape[1]
     num_genes, num_genefeatures = data[1].x.shape[0], data[1].x.shape[1]
     hidden_dim = hyperparams["concat_hidden_dim"] // 2
@@ -78,11 +80,11 @@ def train_clarifyGAE(data, hyperparams = None):
     if hyperparams["optimizer"] == "adam":
         hyperparams["optimizer"] = torch.optim.Adam(multiviewGAE.parameters(), lr=0.01, weight_decay=5e-4),
     
-    training.train(model=multiviewGAE, data=data, hyperparameters = hyperparams)
+    return training.train(model=multiviewGAE, data=data, hyperparameters = hyperparams)
 
 
 
-def train_clarifyGAE_pytorch(data, hyperparams = None):
+def build_clarifyGAE_pytorch(data, hyperparams = None):
     num_cells, num_cellfeatures = data[0].x.shape[0], data[0].x.shape[1]
     num_genes, num_genefeatures = data[1].x.shape[0], data[1].x.shape[1]
     hidden_dim = hyperparams["concat_hidden_dim"] // 2
@@ -94,12 +96,7 @@ def train_clarifyGAE_pytorch(data, hyperparams = None):
     multiviewEncoder = models.MultiviewEncoder(SubgraphEncoder = geneEncoder, GraphEncoder = cellEncoder)
     gae = GAE(multiviewEncoder)
 
-    # print(gae(data[0].x))
-    
-    if hyperparams["optimizer"] == "adam":
-        hyperparams["optimizer"] = torch.optim.Adam(gae.parameters(), lr=0.01),
-    
-    training.train_gae(model=gae, data=data, hyperparameters = hyperparams)
+    return gae
 
 
 
@@ -112,6 +109,7 @@ def main():
     num_nearestneighbors = args.nearestneighbors
     num_genespercell = args.numgenespercell
     LR_database = args.lrdatabase
+    studyname = args.studyname
     
     preprocess_output_path = os.path.join(output_dir_path, "preprocessing_output")
     training_output_path = os.path.join(output_dir_path, "training_output")
@@ -150,6 +148,7 @@ def main():
             
         celllevel_edgelist = preprocessing.convert_adjacencylist2edgelist(celllevel_adj)
         genelevel_edgelist = nx.to_pandas_edgelist(genelevel_graph).drop(["weight"], axis=1).to_numpy().T
+        genelevel_adjmatrix = nx.adjacency_matrix(genelevel_graph, weight=None)
         
         assert celllevel_edgelist.shape == (2, celllevel_adj.shape[0] * celllevel_adj.shape[1])
         
@@ -158,6 +157,7 @@ def main():
         np.save(os.path.join(preprocess_output_path, "celllevel_edgelist.npy"),celllevel_edgelist)
         np.save(os.path.join(preprocess_output_path, "celllevel_features.npy"),celllevel_features)
         np.save(os.path.join(preprocess_output_path, "genelevel_edgelist.npy"),genelevel_edgelist)
+        np.save(os.path.join(preprocess_output_path, "genelevel_adjmatrix.npy"),genelevel_adjmatrix)
         np.save(file = os.path.join(preprocess_output_path, "initial_grns.npy"), arr = grns) 
         
         if not debug:
@@ -195,8 +195,14 @@ def main():
         data = (celllevel_data, genelevel_data)
         
         # train_clarifyGAE(data, hyperparameters)
-        train_clarifyGAE_pytorch(data, hyperparameters)
-
+        model = build_clarifyGAE_pytorch(data, hyperparameters)
+        
+        if hyperparameters["optimizer"] == "adam":
+            hyperparameters["optimizer"] = torch.optim.Adam(model.parameters(), lr=0.01),
+    
+        trained_model = training.train_gae(model=model, data=data, hyperparameters = hyperparameters)
+        
+        torch.save(trained_model.state_dict(), os.path.join(training_output_path,f'trained_gae_model.pth'))
 
     return
 
