@@ -53,13 +53,14 @@ def preprocess(st_data, num_nearestneighbors, lrgene_ids, cespgrn_hyperparameter
     celllevel_adj, _ = preprocessing.construct_celllevel_graph(st_data, num_nearestneighbors, get_edges=False)
 
     #  3. Construct Gene-Level Graph from ST Data + GRNs 
-    gene_level_graph, num2gene, gene2num = preprocessing.construct_genelevel_graph(grns, celllevel_adj, node_type="int", lrgenes = lrgene_ids)
+    gene_level_graph, num2gene, gene2num, grn_components = preprocessing.construct_genelevel_graph(grns, celllevel_adj, node_type="int", lrgenes = lrgene_ids)
     
     # 4. Generate Gene Feature vectors
-    if debug:
-        gene_features, genefeaturemodel = None,None
-    else:
-        gene_features, genefeaturemodel = preprocessing.get_gene_features(gene_level_graph, type="node2vec")
+    # if debug:
+    #     gene_features, genefeaturemodel = None,None
+    # else:
+    #     gene_features, genefeaturemodel = preprocessing.get_gene_features(gene_level_graph, type="node2vec")
+    gene_features, genefeaturemodel = preprocessing.get_gene_features(grn_components, type="node2vec")
     
 
     return celllevel_adj, gene_level_graph, num2gene, gene2num, grns, gene_features, genefeaturemodel
@@ -160,9 +161,9 @@ def main():
         np.save(os.path.join(preprocess_output_path, "genelevel_adjmatrix.npy"),genelevel_adjmatrix)
         np.save(file = os.path.join(preprocess_output_path, "initial_grns.npy"), arr = grns) 
         
-        if not debug:
-            np.save(os.path.join(preprocess_output_path, "genelevel_features.npy"), genelevel_features) 
-            genelevel_feature_model.save(os.path.join(preprocess_output_path, "genelevel_feature_model")) 
+        # if not debug:
+        np.save(os.path.join(preprocess_output_path, "genelevel_features.npy"), genelevel_features) 
+        genelevel_feature_model.save(os.path.join(preprocess_output_path, "genelevel_feature_model")) 
 
         print(f"Finished preprocessing in {(time.time() - start_time)/60} mins.\n")
     
@@ -189,7 +190,7 @@ def main():
             "concat_hidden_dim": 64,
             "optimizer" : "adam",
             "criterion" : torch.nn.BCELoss(),
-            "num_epochs": 400
+            "num_epochs": 120
         }
 
         data = (celllevel_data, genelevel_data)
@@ -202,7 +203,7 @@ def main():
     
         trained_model = training.train_gae(model=model, data=data, hyperparameters = hyperparameters)
         
-        torch.save(trained_model.state_dict(), os.path.join(training_output_path,f'trained_gae_model.pth'))
+        torch.save(trained_model.state_dict(), os.path.join(training_output_path,f'{studyname}_trained_gae_model.pth'))
 
     return
 

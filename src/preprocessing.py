@@ -261,7 +261,7 @@ def construct_genelevel_graph(disjoint_grns, celllevel_adj_list, node_type = "in
 
     assert len(gene_level_graph.nodes()) == numcells * numgenes
 
-    return gene_level_graph, num2gene, gene2num
+    return gene_level_graph, num2gene, gene2num, union_of_grns
         
 
 

@@ -75,7 +75,7 @@ class MultiviewEncoder(torch.nn.Module):
 
         assert Z.shape[1] == 2 * Z_g.shape[1]
 
-        return Z, Z_c, gene_embeddings
+        return Z, Z_c, Z_g, gene_embeddings
     
 
 

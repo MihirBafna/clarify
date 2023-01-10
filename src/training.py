@@ -6,7 +6,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.preprocessing import normalize
 from scipy.linalg import block_diag
 import numpy as np
-# import wandb
+import wandb
 from tqdm import trange
 
 
@@ -73,7 +73,8 @@ def create_intracellular_gene_mask(num_cells, num_genespercell):
       
       
 def train_gae(data, model, hyperparameters):
-  # wandb.config = hyperparameters
+  wandb.init()
+  wandb.config = hyperparameters
   num_epochs = hyperparameters["num_epochs"]
   optimizer = hyperparameters["optimizer"][0]
   criterion = hyperparameters["criterion"]
@@ -87,14 +88,16 @@ def train_gae(data, model, hyperparameters):
       pbar.set_description(f"Epoch {epoch}")
       model.train()
       optimizer.zero_grad()  # Clear gradients.
-      z, _, z_g = model.encode(data[0].x,data[1].x, data[0].edge_index, data[1].edge_index)
+      z, _, _, z_g = model.encode(data[0].x,data[1].x, data[0].edge_index, data[1].edge_index)
       recon_Ac = torch.sigmoid(torch.matmul(z, z.t()))
-      recon_Ag = torch.sigmoid(torch.matmul(z_g, z_g.t()))
 
-      loss = 0.6 * model.recon_loss(z, data[0].edge_index)
+      recon_Ag = torch.sigmoid(torch.matmul(z_g, z_g.t()))
       
       # calculate intracellular (GRN) gene similarity penalty
-      loss += 0.4 * mse(recon_Ag[intracellular_gene_mask], data[1].y)
+      intracellular_penalty_loss =  mse(recon_Ag[intracellular_gene_mask], data[1].y)
+      recon_loss = model.recon_loss(z, data[0].edge_index)
+      
+      loss = 0.2*recon_loss + 0.8*intracellular_penalty_loss
       
       auc, ap = roc_auc_score(data[0].y.detach().numpy().flatten(),recon_Ac.detach().numpy().flatten() ), average_precision_score(data[0].y.detach().numpy().flatten(),recon_Ac.detach().numpy().flatten() )
 
@@ -103,5 +106,6 @@ def train_gae(data, model, hyperparameters):
       optimizer.step()  # Update parameters based on gradients.
 
       pbar.set_postfix(loss=loss.item(), auc=auc.item(), ap =ap.item())
+      wandb.log({'Epoch':epoch, 'Total Loss': loss, 'Reconstruction Loss': recon_loss, "Intracellular Penalty Loss": intracellular_penalty_loss, "Reconstruction AUC":auc, "Reconstruction AP":ap })
   
   return model
