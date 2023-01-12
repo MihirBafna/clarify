@@ -50,11 +50,16 @@ class GraphEncoder(torch.nn.Module):
 
 
 class InnerProductDecoder(torch.nn.Module):
-    def __init__(self):
-        super(InnerProductDecoder, self).__init__()
+    r"""Pytorch Geometrit Inner Product Decoder Implementation"""
+    
+    def forward(self, z, edge_index,sigmoid = True):
+        value = (z[edge_index[0]] * z[edge_index[1]]).sum(dim=1)
+        return torch.sigmoid(value) if sigmoid else value
 
-    def forward(self, Z):
-        return torch.sigmoid(Z @ Z.T)
+
+    # def forward_all(self, z, sigmoid = True):
+    #     adj = torch.matmul(z, z.t())
+    #     return torch.sigmoid(adj) if sigmoid else adj
 
 
 class MultiviewEncoder(torch.nn.Module):

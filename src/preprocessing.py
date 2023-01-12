@@ -62,21 +62,30 @@ def select_LRgenes(data_df, num_genespercell, lr_database = 0):
     '''
     if lr_database == 0:
         sample_counts = data_df.drop(["Cell_ID", "X", "Y", "Cell_Type"], axis = 1)
-        lr_df = pd.read_csv("../data/celltalk_human_lr_pair.txt", sep="\t")
+        # lr_df = pd.read_csv("../data/celltalk_human_lr_pair.txt", sep="\t")
+        lr_df = pd.read_csv("../data/celltalk_mouse_lr_pair.txt", sep="\t")
         
-        receptors = set(lr_df["receptor_gene_symbol"].to_list())
-        ligands = set(lr_df["ligand_gene_symbol"].to_list())
+        receptors = set(lr_df["receptor_gene_symbol"].str.upper().to_list())
+        ligands = set(lr_df["ligand_gene_symbol"].str.upper().to_list())
         real2uppercase = {x:x.upper() for x in sample_counts.columns}
         uppercase2real = {upper:real for real,upper in real2uppercase.items()}
         candidate_genes = set(np.vectorize(real2uppercase.get)(sample_counts.columns.to_numpy()))
         
         selected_ligands = candidate_genes.intersection(ligands)
         selected_receptors = candidate_genes.intersection(receptors)
+        selected_lrs = selected_ligands | selected_receptors
         
-        print(f"Found {len(selected_ligands)} ligands and {len(selected_receptors)} receptors to be included in the {num_genespercell} selected genes per cell. \n")
+        if len(selected_lrs) > num_genespercell // 2 + 1:
+            selected_lrs = set(random.sample(tuple(selected_lrs), num_genespercell // 2 + 1))
+            selected_ligands = selected_lrs.intersection(selected_ligands)
+            selected_receptors = selected_lrs.intersection(selected_receptors)
+        
+        print(f"Using {len(selected_ligands)} ligands and {len(selected_receptors)} receptors to be included in the {num_genespercell} selected genes per cell. \n")
         
         num_genesleft = num_genespercell - len(selected_ligands) - len(selected_receptors)
+        
         candidate_genesleft = candidate_genes - selected_ligands - selected_receptors
+        
         
         selected_randomgenes = set(random.sample(tuple(candidate_genesleft), num_genesleft))
         
@@ -111,35 +120,40 @@ def infer_initial_grns(data_df, cespgrn_hyperparams):
     
     :return: nd.array(shape=(numcells, numgenespercell, numgenespercell))
     '''
+    console = Console()
     
-    counts = data_df.drop(["Cell_ID", "X", "Y", "Cell_Type"], axis = 1).values
-    # print(f"GRNs are dimension ({counts.shape[1]} by {counts.shape[1]}) for each of the {counts.shape[0]} cells\n")
-    
-    # Normalize Counts??? 
-    pca_op = PCA(n_components = 20)
-    X_pca = pca_op.fit_transform(counts)
+    with console.status("[cyan] Preparing CeSpGRN ...") as status:
+        status.update(spinner="aesthetic", spinner_style="cyan")
+        counts = data_df.drop(["Cell_ID", "X", "Y", "Cell_Type"], axis = 1).values
+        # print(f"GRNs are dimension ({counts.shape[1]} by {counts.shape[1]}) for each of the {counts.shape[0]} cells\n")
+        
+        # Normalize Counts??? 
+        pca_op = PCA(n_components = 20)
+        X_pca = pca_op.fit_transform(counts)
 
-    # hyper-parameters
-    bandwidth = cespgrn_hyperparams["bandwidth"]
-    n_neigh = cespgrn_hyperparams["n_neigh"]
-    lamb = cespgrn_hyperparams["lamb"]
-    max_iters = cespgrn_hyperparams["max_iters"]
+        # hyper-parameters
+        bandwidth = cespgrn_hyperparams["bandwidth"]
+        n_neigh = cespgrn_hyperparams["n_neigh"]
+        lamb = cespgrn_hyperparams["lamb"]
+        max_iters = cespgrn_hyperparams["max_iters"]
 
-    start_time = time.time()
-    # calculate the kernel function
-    K, K_trun = kernel.calc_kernel_neigh(X_pca, k = 5, bandwidth = bandwidth, truncate = True, truncate_param = n_neigh)
+        # calculate the kernel function
+        status.update(status="[cyan] calculating kernel function ...")
+        K, K_trun = kernel.calc_kernel_neigh(X_pca, k = 5, bandwidth = bandwidth, truncate = True, truncate_param = n_neigh)
 
-    # estimate covariance matrix, output is empir_cov of the shape (ncells, ngenes, ngenes)
-    empir_cov = CeSpGRN.est_cov(X = counts, K_trun = K_trun, weighted_kt = True)
+        # estimate covariance matrix, output is empir_cov of the shape (ncells, ngenes, ngenes)
+        status.update(status="[cyan] estimating covariance matrix ...")
+        empir_cov = CeSpGRN.est_cov(X = counts, K_trun = K_trun, weighted_kt = True)
 
-    # estimate cell-specific GRNs
-    cespgrn = CeSpGRN.G_admm_minibatch(X=counts[:, None, :], K=K, pre_cov=empir_cov, batchsize = 120)
+        # estimate cell-specific GRNs
+        status.update(status="[cyan] Load in CeSpGRN model ...")
+        cespgrn = CeSpGRN.G_admm_minibatch(X=counts[:, None, :], K=K, pre_cov=empir_cov, batchsize = 120)
+        
+        status.update(status="[cyan] Ready to train ...")
+        time.sleep(3)
+        
     grns = cespgrn.train(max_iters=max_iters, n_intervals=100, lamb=lamb)
     
-
-    # print("Total time inferring GRNs: {:.2f} sec".format(time.time() - start_time))
-    # print()
-
     return grns
 
 
@@ -272,7 +286,7 @@ def get_gene_features(graph, type="node2vec"):
     console.print(f"[cyan]4. Constructing {type} Gene Level Features")
     
     if type == "node2vec":
-        node2vec = Node2Vec(graph, dimensions=64, walk_length=30, num_walks=200, workers=4)
+        node2vec = Node2Vec(graph, dimensions=64, walk_length=15, num_walks=100, workers=4)
         model = node2vec.fit()
 
         gene_feature_vectors = model.wv.vectors

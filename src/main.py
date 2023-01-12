@@ -5,6 +5,8 @@ import os
 import argparse
 from rich.table import Table
 from rich.console import Console
+from rich.text import Text
+from rich.spinner import Spinner
 import torch
 import time
 
@@ -16,7 +18,7 @@ import visualize as vis
 from torch_geometric.nn import GAE
 
 
-debug = True
+debug = False
 
 
 def parse_arguments():
@@ -86,7 +88,7 @@ def build_clarifyGAE(data, hyperparams = None):
 
 
 def build_clarifyGAE_pytorch(data, hyperparams = None):
-    num_cells, num_cellfeatures = data[0].x.shape[0], data[0].x.shape[1]
+    num_cells, num_cellfeatures = data[0][0].x.shape[0], data[0][0].x.shape[1]
     num_genes, num_genefeatures = data[1].x.shape[0], data[1].x.shape[1]
     hidden_dim = hyperparams["concat_hidden_dim"] // 2
     num_genespercell = hyperparams["num_genespercell"]
@@ -102,24 +104,48 @@ def build_clarifyGAE_pytorch(data, hyperparams = None):
 
 
 def main():
-    args = parse_arguments()
     
-    mode = args.mode
-    input_dir_path = args.inputdirpath
-    output_dir_path = args.outputdirpath
-    num_nearestneighbors = args.nearestneighbors
-    num_genespercell = args.numgenespercell
-    LR_database = args.lrdatabase
-    studyname = args.studyname
+    console = Console()
+    text = Text.from_ansi(r"""
+    --------------------------------------------------------------------------------
+     .d8888b.   888              d8888  8888888b.   8888888  8888888888  Y88b   d88P 
+    d88P  Y88b  888             d88888  888   Y88b    888    888          Y88b d88P  
+    888    888  888            d88P888  888    888    888    888           Y88o88P   
+    888         888           d88P 888  888   d88P    888    8888888        Y888P    
+    888         888          d88P  888  8888888P"     888    888             888     
+    888    888  888         d88P   888  888 T88b      888    888             888     
+    Y88b  d88P  888        d8888888888  888  T88b     888    888             888     
+      88888P    88888888  d88P     888  888   T88b  8888888  888             888
+    --------------------------------------------------------------------------------
+                    """)
+    text.stylize("cyan")
+    console.print(text)
     
-    preprocess_output_path = os.path.join(output_dir_path, "preprocessing_output")
-    training_output_path = os.path.join(output_dir_path, "training_output")
-    evaluation_output_path = os.path.join(output_dir_path, "evaluation_output")
+    with console.status("[cyan] Clarify booting up ...") as status:
+        status.update(spinner="aesthetic", spinner_style="cyan")
+        time.sleep(4)
+        status.update(status="[cyan] Parsing arguments ...")
+        args = parse_arguments()
+    
+        mode = args.mode
+        input_dir_path = args.inputdirpath
+        output_dir_path = args.outputdirpath
+        num_nearestneighbors = args.nearestneighbors
+        num_genespercell = args.numgenespercell
+        LR_database = args.lrdatabase
+        studyname = args.studyname
+        
+        preprocess_output_path = os.path.join(output_dir_path, "1_preprocessing_output")
+        training_output_path = os.path.join(output_dir_path, "2_training_output")
+        evaluation_output_path = os.path.join(output_dir_path, "3_evaluation_output")
+        time.sleep(4)
+        status.update(status="[cyan] Done")
+        time.sleep(2)
 
-    
+        
     if "preprocess" in mode:
         start_time = time.time()
-        print("\n#------------------------------ Loading in data/arguments ----------------------------#\n")
+        print("\n#------------------------------------ Loading in data ---------------------------------#\n")
         st_data = pd.read_csv(input_dir_path, index_col=None)
         assert {"Cell_ID", "X", "Y", "Cell_Type"}.issubset(set(st_data.columns.to_list()))
         
@@ -169,14 +195,27 @@ def main():
     
 
     if "train" in mode:
+        hyperparameters = {
+            "num_genespercell": num_genespercell,
+            "concat_hidden_dim": 64,
+            "optimizer" : "adam",
+            "criterion" : torch.nn.BCELoss(),
+            "num_epochs": 120,
+            "split":0.9
+        }
+        
+        
         print("\n#------------------------------ Creating PyG Datasets ----------------------------#\n")
 
-        celllevel_data, genelevel_data = training.create_pyg_data(preprocess_output_path)
+        celllevel_data, genelevel_data = training.create_pyg_data(preprocess_output_path, hyperparameters["split"])
         console = Console()
         table = Table(show_header=True, header_style="bold")
         table.add_column("Cell Level PyG Data", style="cyan")
         table.add_column("Gene Level PyG Data", style="deep_pink3")
-        table.add_row(str(celllevel_data), "".join(str(genelevel_data).split("\n")))
+        
+        celllevel_str = str(celllevel_data)
+
+        table.add_row(celllevel_str, "".join(str(genelevel_data).split("\n")))
         console.print(table)
         
         if not os.path.exists(training_output_path):
@@ -185,25 +224,21 @@ def main():
 
         print("\n#------------------------------- ClarifyGAE Training -----------------------------#\n")
 
-        hyperparameters = {
-            "num_genespercell": num_genespercell,
-            "concat_hidden_dim": 64,
-            "optimizer" : "adam",
-            "criterion" : torch.nn.BCELoss(),
-            "num_epochs": 120
-        }
-
         data = (celllevel_data, genelevel_data)
         
         # train_clarifyGAE(data, hyperparameters)
         model = build_clarifyGAE_pytorch(data, hyperparameters)
         
         if hyperparameters["optimizer"] == "adam":
-            hyperparameters["optimizer"] = torch.optim.Adam(model.parameters(), lr=0.01),
+            hyperparameters["optimizer"] = torch.optim.Adam(model.parameters(), lr=0.01), 
+            
+        split = hyperparameters["split"]
     
-        trained_model = training.train_gae(model=model, data=data, hyperparameters = hyperparameters)
+        trained_model, metrics_df = training.train_gae(model=model, data=data, hyperparameters = hyperparameters)
         
         torch.save(trained_model.state_dict(), os.path.join(training_output_path,f'{studyname}_trained_gae_model.pth'))
+        
+        metrics_df.to_csv(os.path.join(training_output_path, f"metrics_{split}.csv"))
 
     return
 
