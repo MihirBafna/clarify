@@ -23,7 +23,14 @@ def visualize_celllevel_graph(df, gene, title, edge_trace = None, publication=Fa
     return: plotly express figure
     '''
 
-    fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene, color_continuous_scale="sunsetdark",width=700, height=650, title=title)
+    # fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene, color_continuous_scale="sunsetdark",width=700, height=650, title=title)
+
+    # if publication:
+    #     fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene, color_discrete_sequence=px.colors.sequential.Sunsetdark_r,width=700, height=650, title=title)
+    # else:
+    #     fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene, color_continuous_scale="sunsetdark",width=700, height=650, title=title)
+    fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene,width=700, height=650, title=title)
+
 
     if edge_trace is not None:
         fig.add_trace(go.Scatter( x=edge_trace[0], y=edge_trace[1],
@@ -36,15 +43,16 @@ def visualize_celllevel_graph(df, gene, title, edge_trace = None, publication=Fa
             "Cell_ID: %{customdata[0]}",
             "X: %{x}",
             "Y: %{y}",
-        ])
+        ]),
     )
-    fig.update_xaxes(showline=False, linewidth=2, linecolor='rgba(1,1,1,0)', gridcolor='rgba(1,1,1,0)',zeroline=False)
-    fig.update_yaxes(showline=False, linewidth=2, linecolor='rgba(1,1,1,0)', gridcolor='rgba(1,1,1,0)',zeroline=False)
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(1,1,1,0)",font_color="lightgray")    
+ 
+    # fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(1,1,1,0)",font_color="lightgray")    
     if not publication:
         fig.update_layout(coloraxis_colorbar=dict(yanchor="top", y=1, x=-0.2))
 
         # pio.renderers.default = "notebook_connected"
+        fig.update_xaxes(showline=False, linewidth=2, linecolor='rgba(1,1,1,0)', gridcolor='rgba(1,1,1,0)',zeroline=False)
+        fig.update_yaxes(showline=False, linewidth=2, linecolor='rgba(1,1,1,0)', gridcolor='rgba(1,1,1,0)',zeroline=False)
         fig.update_xaxes(showline=True, linewidth=2, linecolor='rgba(1,1,1,.2)', gridcolor='rgba(1,1,1,.2)',zeroline=False)
         fig.update_yaxes(showline=True, linewidth=2, linecolor='rgba(1,1,1,.2)', gridcolor='rgba(1,1,1,.2)',zeroline=False)
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(1,1,1,0)",font_color="lightgray")

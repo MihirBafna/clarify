@@ -17,8 +17,7 @@ import visualize as vis
 
 from torch_geometric.nn import GAE
 
-
-debug = False
+debug = True
 
 
 def parse_arguments():
@@ -37,22 +36,33 @@ def parse_arguments():
                     help="0/1/2 for which Ligand-Receptor Database to use")
     parser.add_argument("-s", "--studyname", type=str,
         help="clarifyGAE study name")
+    parser.add_argument("-t", "--split", type=float,
+        help="# of test edges [0,1)")
+    parser.add_argument("--fp", type=float, default=0,
+        help="(experimentation only) # of false positive test edges [0,1)")
+    parser.add_argument("--fn", type=float, default=0,
+        help="(experimentation only) # of false negative test edges [0,1)")
+    parser.add_argument("-a", "--ownadjacencypath", type=str,
+        help="Using your own cell level adjacency (give path)")
     args = parser.parse_args()
     return args
 
 
 
-def preprocess(st_data, num_nearestneighbors, lrgene_ids, cespgrn_hyperparameters):    
+def preprocess(st_data, num_nearestneighbors, lrgene_ids, cespgrn_hyperparameters, ownadjacencypath = None):    
         
     # 1. Infer initial GRNs with CeSpGRN
     if debug: # skip inferring GRNs while debugging
         print("1. Skipping CeSpGRN inference (for debug mode)")
-        grns = np.load("../out/preprocessing_output/seqfish_grns.npy")
+        grns = np.load("../out/scmultisim_final/1_preprocessing_output/initial_grns.npy")
     else:
         grns = preprocessing.infer_initial_grns(st_data, cespgrn_hyperparameters) # shape (ncells, ngenes, ngenes)
 
     # 2. Construct Cell-Level Graph from ST Data
-    celllevel_adj, _ = preprocessing.construct_celllevel_graph(st_data, num_nearestneighbors, get_edges=False)
+    if ownadjacencypath is not None:
+        celllevel_adj = np.load(ownadjacencypath)
+    else:
+        celllevel_adj, _ = preprocessing.construct_celllevel_graph(st_data, num_nearestneighbors, get_edges=False)
 
     #  3. Construct Gene-Level Graph from ST Data + GRNs 
     gene_level_graph, num2gene, gene2num, grn_components = preprocessing.construct_genelevel_graph(grns, celllevel_adj, node_type="int", lrgenes = lrgene_ids)
@@ -61,7 +71,7 @@ def preprocess(st_data, num_nearestneighbors, lrgene_ids, cespgrn_hyperparameter
     # if debug:
     #     gene_features, genefeaturemodel = None,None
     # else:
-    #     gene_features, genefeaturemodel = preprocessing.get_gene_features(gene_level_graph, type="node2vec")
+    #     gene_features, genefeaturemodel = preprocessing.get_gene_features(grn_components, type="node2vec")
     gene_features, genefeaturemodel = preprocessing.get_gene_features(grn_components, type="node2vec")
     
 
@@ -81,7 +91,7 @@ def build_clarifyGAE(data, hyperparams = None):
     multiviewGAE = models.MultiviewGAE(SubgraphEncoder = geneEncoder, GraphEncoder = cellEncoder)
     
     if hyperparams["optimizer"] == "adam":
-        hyperparams["optimizer"] = torch.optim.Adam(multiviewGAE.parameters(), lr=0.01, weight_decay=5e-4),
+        hyperparams["optimizer"] = torch.optim.Adam(multiviewGAE.parameters(), lr=0.01, weight_decay = 5e-4),    # optionally add weight_decay = 5e-4
     
     return training.train(model=multiviewGAE, data=data, hyperparameters = hyperparams)
 
@@ -117,6 +127,7 @@ def main():
     Y88b  d88P  888        d8888888888  888  T88b     888    888             888     
       88888P    88888888  d88P     888  888   T88b  8888888  888             888
     --------------------------------------------------------------------------------
+        CCI and GRN refinement with spatially resolved transcriptomics and GAEs
                     """)
     text.stylize("cyan")
     console.print(text)
@@ -134,6 +145,7 @@ def main():
         num_genespercell = args.numgenespercell
         LR_database = args.lrdatabase
         studyname = args.studyname
+        ownadjacencypath = args.ownadjacencypath
         
         preprocess_output_path = os.path.join(output_dir_path, "1_preprocessing_output")
         training_output_path = os.path.join(output_dir_path, "2_training_output")
@@ -171,7 +183,7 @@ def main():
         # include X,Y in features??
         celllevel_features = st_data.drop(["Cell_ID", "Cell_Type", "X", "Y"], axis = 1).values
 
-        celllevel_adj, genelevel_graph, num2gene, gene2num, grns, genelevel_features, genelevel_feature_model = preprocess(selected_st_data, num_nearestneighbors,lrgene2id.values(), cespgrn_hyperparameters)
+        celllevel_adj, genelevel_graph, num2gene, gene2num, grns, genelevel_features, genelevel_feature_model = preprocess(selected_st_data, num_nearestneighbors,lrgene2id.values(), cespgrn_hyperparameters, ownadjacencypath)
             
         celllevel_edgelist = preprocessing.convert_adjacencylist2edgelist(celllevel_adj)
         genelevel_edgelist = nx.to_pandas_edgelist(genelevel_graph).drop(["weight"], axis=1).to_numpy().T
@@ -201,13 +213,16 @@ def main():
             "optimizer" : "adam",
             "criterion" : torch.nn.BCELoss(),
             "num_epochs": 120,
-            "split":0.9
+            "split": args.split,
         }
+        
+        # add false edges only for experimentation
+        false_edges = None if args.fp == 0 and args.fn == 0 else {"fp": args.fp, "fn": args.fn}
         
         
         print("\n#------------------------------ Creating PyG Datasets ----------------------------#\n")
 
-        celllevel_data, genelevel_data = training.create_pyg_data(preprocess_output_path, hyperparameters["split"])
+        celllevel_data, genelevel_data = training.create_pyg_data(preprocess_output_path, hyperparameters["split"],false_edges)
         console = Console()
         table = Table(show_header=True, header_style="bold")
         table.add_column("Cell Level PyG Data", style="cyan")
@@ -238,7 +253,7 @@ def main():
         
         torch.save(trained_model.state_dict(), os.path.join(training_output_path,f'{studyname}_trained_gae_model.pth'))
         
-        metrics_df.to_csv(os.path.join(training_output_path, f"metrics_{split}.csv"))
+        metrics_df.to_csv(os.path.join(evaluation_output_path, f"{studyname}_metrics_{split}.csv"))
 
     return
 

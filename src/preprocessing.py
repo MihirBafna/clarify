@@ -44,9 +44,10 @@ def convert_adjacencylist2adjacencymatrix(adj_list):
     for i in range(num_vertices):
         for j in adj_list[i]:
             adj_matrix[i][j] = 1
+            adj_matrix[j][i] = 1
      
     return adj_matrix
-    
+
 
 
 
@@ -56,7 +57,7 @@ def select_LRgenes(data_df, num_genespercell, lr_database = 0):
     
     :data_df: pd.DataFrame : represents the spatial data and contains the following columns ["Cell_ID", "X", "Y", "Cell_Type", "Gene 1", ..., "Gene n"]
     :num_genespercell: int : represents the number of genes to be included for each Cell-Specific GRN
-    :lr_database: int: 0/1/2 corresponding to LR database (0: CellTalkDB)
+    :lr_database: int: 0/1/2 corresponding to LR database (0: CellTalkDB Mouse,1: CellTalkDB Human, 2: scMultiSim Simulated)
     
     :return : pd.DataFrame with relevant gene columns preserved and dictionary mapping LR genes to their numerical ids
     '''
@@ -106,6 +107,43 @@ def select_LRgenes(data_df, num_genespercell, lr_database = 0):
         lr2id = {gene:list(selected_df.columns).index(gene)-4 for gene in np.vectorize(uppercase2real.get)(list(selected_ligands|selected_receptors))}
         
         return selected_df, lr2id
+    
+    elif lr_database==2:
+  
+        sample_counts = data_df.drop(["Cell_ID", "X", "Y", "Cell_Type"], axis = 1)
+        candidate_genes = sample_counts.columns.to_numpy()
+        scmultisim_lrs = pd.read_csv("../data/scMultiSim/simulated/cci_gt.csv")[["ligand", "receptor"]]
+        scmultisim_lrs["ligand"] = scmultisim_lrs["ligand"]
+        scmultisim_lrs["receptor"] = scmultisim_lrs["receptor"]
+        selected_ligands = np.unique(scmultisim_lrs["ligand"])
+        selected_receptors = np.unique(scmultisim_lrs["receptor"])
+        selected_lrs = np.concatenate((selected_ligands,selected_receptors),axis=0)
+
+        # remove_index = np.where(selected_lrs == "gene3")
+        # selected_lrs = np.delete(selected_lrs, remove_index)
+
+        num_genesleft = num_genespercell - len(selected_ligands) - len(selected_receptors)
+        indices  = np.argwhere(candidate_genes == selected_lrs)
+        candidate_genesleft = np.delete(candidate_genes, indices)
+        selected_randomgenes = random.sample(set(candidate_genesleft), num_genesleft)
+        
+        console = Console()
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Selected Ligands", style="cyan")
+        table.add_column("Selected Receptors", style="deep_pink3")
+        table.add_column("Selected Random Genes", justify="right")
+        table.add_row("\n".join([str(x) for x in selected_ligands]),"\n".join([str(x) for x in selected_receptors]),"\n".join([str(x) for x in selected_randomgenes]))
+        console.print(table)
+
+        selected_genes = np.concatenate((selected_lrs, selected_randomgenes),axis=0)
+
+
+        new_columns = ["Cell_ID", "X", "Y", "Cell_Type"] + list(selected_genes)
+        selected_df = data_df[new_columns]
+        lr2id = {gene:list(selected_df.columns).index(gene)-4 for gene in selected_genes}
+
+        return selected_df, lr2id
+        
     else:
         raise Exception("Invalid lr_database type")
     
@@ -259,14 +297,15 @@ def construct_genelevel_graph(disjoint_grns, celllevel_adj_list, node_type = "in
     for cell, neighborhood in enumerate(track(celllevel_adj_list,\
         description=f"[cyan]3b. Constructing Gene-Level Graph")): # for each cell in the ST data
         for neighbor_cell in neighborhood:
-            for lrgene1 in lrgenes:
-                for lrgene2 in lrgenes:
-                    node1 = f"Cell{cell}_Gene{lrgene1}"
-                    node2 = f"Cell{neighbor_cell}_Gene{lrgene2}"
-                    if not gene_level_graph.has_node(node1) or not gene_level_graph.has_node(node2): 
-                        raise Exception("Node not found. Debug the Gene-Level Graph creation.")
-                    
-                    gene_level_graph.add_edge(node1, node2)
+            if neighbor_cell != -1:
+                for lrgene1 in lrgenes:
+                    for lrgene2 in lrgenes:
+                        node1 = f"Cell{cell}_Gene{lrgene1}"
+                        node2 = f"Cell{neighbor_cell}_Gene{lrgene2}"
+                        if not gene_level_graph.has_node(node1) or not gene_level_graph.has_node(node2): 
+                            raise Exception(f"Nodes {node1} or {node2} not found. Debug the Gene-Level Graph creation.")
+                        
+                        gene_level_graph.add_edge(node1, node2)
 
     if node_type == "str":
         gene_level_graph = gene_level_graph
