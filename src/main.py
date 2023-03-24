@@ -7,7 +7,9 @@ from rich.table import Table
 from rich.console import Console
 from rich.text import Text
 from rich.spinner import Spinner
+
 import torch
+
 import time
 
 import preprocessing as preprocessing
