@@ -13,10 +13,7 @@ from node2vec import Node2Vec
 import os
 sys.path.insert(0, os.path.abspath('./submodules/'))
 sys.path.append('./submodules/CeSpGRN/src/')
-from .submodules.CeSpGRN.src import *
-from .submodules.CeSpGRN.src import kernel
-from .submodules.CeSpGRN.src import g_admm as CeSpGRN
-
+sys.path.append('../')
 
 
 def convert_adjacencylist2edgelist(adj_list): # do we need to account for repeat edges?
@@ -160,6 +157,9 @@ def infer_initial_grns(data_df, cespgrn_hyperparams):
     :return: nd.array(shape=(numcells, numgenespercell, numgenespercell))
     '''
     console = Console()
+    
+    from submodules.CeSpGRN.src import kernel
+    from submodules.CeSpGRN.src import g_admm as CeSpGRN
     
     with console.status("[cyan] Preparing CeSpGRN ...") as status:
         status.update(spinner="aesthetic", spinner_style="cyan")

@@ -19,27 +19,27 @@ import visualize as vis
 
 from torch_geometric.nn import GAE
 
-debug = True
+debug = False
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='clarifyGAE arguments')
     parser.add_argument("-m", "--mode", type=str, default = "train",
         help="clarifyGAE mode: preprocess,train,test")
-    parser.add_argument("-n", "--numgenespercell", type=int, default = 45,
-            help="Number of genes in each gene regulatory network")
-    parser.add_argument("-k", "--nearestneighbors", type=int, default = 5,
-                help="Number of nearest neighbors for each cell")
     parser.add_argument("-i", "--inputdirpath", type=str,
                     help="Input directory path where ST data is stored")
     parser.add_argument("-o", "--outputdirpath", type=str,
                     help="Output directory path where results will be stored ")
-    parser.add_argument("-l", "--lrdatabase", type=int, default=0,
-                    help="0/1/2 for which Ligand-Receptor Database to use")
     parser.add_argument("-s", "--studyname", type=str,
-        help="clarifyGAE study name")
+                     help="clarifyGAE study name")
     parser.add_argument("-t", "--split", type=float,
         help="# of test edges [0,1)")
+    parser.add_argument("-n", "--numgenespercell", type=int, default = 45,
+                help="Number of genes in each gene regulatory network")
+    parser.add_argument("-k", "--nearestneighbors", type=int, default = 5,
+                help="Number of nearest neighbors for each cell")
+    parser.add_argument("-l", "--lrdatabase", type=int, default=0,
+                    help="0/1/2 for which Ligand-Receptor Database to use")
     parser.add_argument("--fp", type=float, default=0,
         help="(experimentation only) # of false positive test edges [0,1)")
     parser.add_argument("--fn", type=float, default=0,
