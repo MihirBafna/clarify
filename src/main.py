@@ -255,6 +255,8 @@ def main():
         
         torch.save(trained_model.state_dict(), os.path.join(training_output_path,f'{studyname}_trained_gae_model.pth'))
         
+        if not os.path.exists(evaluation_output_path):
+            os.mkdir(evaluation_output_path)
         metrics_df.to_csv(os.path.join(evaluation_output_path, f"{studyname}_metrics_{split}.csv"))
 
     return
