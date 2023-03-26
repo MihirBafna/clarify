@@ -158,6 +158,8 @@ def main():
 
         
     if "preprocess" in mode:
+        if not os.path.exists(preprocess_output_path):
+            os.mkdir(preprocess_output_path)
         start_time = time.time()
         print("\n#------------------------------------ Loading in data ---------------------------------#\n")
         st_data = pd.read_csv(input_dir_path, index_col=None)
