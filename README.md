@@ -58,4 +58,7 @@ For example, if you wanted to run Clarify (both preprocessing and training) on t
 ```
 python main.py -m preprocess,train -i ../data/seqFISH/seqfish_dataframe.csv -o [OUTPUT FOLDER PATH] -s [STUDYNAME] -t 0.3 
 ```
-
+Since we have already preprocessed these datasets, you can also skip that step by running the following command. Note that you should use the specified out folder (not your own) as that is where the preprocessed results are stored. You can still set your desired studyname.
+```
+python main.py -m train -i ../data/seqFISH/seqfish_dataframe.csv -o ../out/seqfish/ -s [STUDYNAME] -t 0.3 
+```
