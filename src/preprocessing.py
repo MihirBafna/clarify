@@ -10,11 +10,12 @@ from rich.console import Console
 import random
 import sys
 from node2vec import Node2Vec
-
+import os
+sys.path.insert(0, os.path.abspath('./submodules/'))
 sys.path.append('./submodules/CeSpGRN/src/')
-from submodules.CeSpGRN.src import *
-from submodules.CeSpGRN.src import kernel
-from submodules.CeSpGRN.src import g_admm as CeSpGRN
+from .submodules.CeSpGRN.src import *
+from .submodules.CeSpGRN.src import kernel
+from .submodules.CeSpGRN.src import g_admm as CeSpGRN
 
 
 

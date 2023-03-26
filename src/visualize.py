@@ -29,7 +29,7 @@ def visualize_celllevel_graph(df, gene, title, edge_trace = None, publication=Fa
     #     fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene, color_discrete_sequence=px.colors.sequential.Sunsetdark_r,width=700, height=650, title=title)
     # else:
     #     fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene, color_continuous_scale="sunsetdark",width=700, height=650, title=title)
-    fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene,width=700, height=650, title=title)
+    fig = px.scatter(df, x="X", y="Y", custom_data=["Cell_ID"], color=gene,width=700, height=650,color_continuous_scale="sunsetdark", title=title)
 
 
     if edge_trace is not None:
@@ -97,3 +97,43 @@ def visualize_grn_igviz(grn, gene_attributes, title):
     fig.data[0].line.color = "rgba(255, 83, 92, 0.15)"
     
     return fig
+
+
+
+from plotly.subplots import make_subplots
+
+def visualize_metrics(df, baseline_name, data_name, split, metric_list=["AP","ROC"]):
+    figs = []
+    for i,metric in enumerate(metric_list):
+        fig = go.Figure()
+        xaxistitle = "Epoch"
+        yaxistitle = f"{metric}"
+        fig.add_trace(
+            go.Scatter(x=df[xaxistitle],y=df[f"CLARIFY Test {metric}"], line=dict(color="#d14078"),
+                       name="Clarify"),
+        )
+        fig.add_trace(
+            go.Scatter(x=df[xaxistitle],y=df[f"{baseline_name} Test {metric}"], line=dict(color="#345c72"),
+                       name=baseline_name),
+            
+        )
+        fig.update_yaxes(rangemode="tozero")
+        fig.update_xaxes(showline=True, linewidth=1, linecolor='black',tickfont=dict( size=17, color='black'))
+        fig.update_yaxes(showline=True, linewidth=1, linecolor='black',tickfont=dict( size=17, color='black'))
+        fig.update_layout(
+            title=f"({data_name.upper()}) {yaxistitle} over {xaxistitle}s on {split} testing edges",
+            xaxis_title=xaxistitle,
+            yaxis_title=yaxistitle,
+            legend_title="Model",
+            width=800,
+            height=600,
+            plot_bgcolor="white",
+            xaxis=dict( mirror=True,
+            ticks='outside',
+            showline=True,title=xaxistitle),
+            yaxis=dict( mirror=True,
+            ticks='outside',
+            showline=True,title=yaxistitle)
+        )
+        figs.append(fig)
+    return figs
