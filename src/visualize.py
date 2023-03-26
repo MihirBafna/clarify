@@ -100,8 +100,6 @@ def visualize_grn_igviz(grn, gene_attributes, title):
 
 
 
-from plotly.subplots import make_subplots
-
 def visualize_metrics(df, baseline_name, data_name, split, metric_list=["AP","ROC"]):
     figs = []
     for i,metric in enumerate(metric_list):
