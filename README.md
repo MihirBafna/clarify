@@ -54,3 +54,8 @@ This second row of parameters have defaults set and are not needed.
 *  `--fn FN`               (experimentation only) remove # of real edges from train set [0,1)
 *  `-a OWNADJACENCYPATH, --ownadjacencypath` Using your own cell level adjacency (give path)
 
+For example, if you wanted to run Clarify (both preprocessing and training) on the seqFISH data input with a 70/30 train-test split, then use the following command and set the output folder and studyname accordingly:
+```
+python main.py -m preprocess,train -i ../data/seqFISH/seqfish_dataframe.csv -o [OUTPUT FOLDER PATH] -s [STUDYNAME] -t 0.3 
+```
+
