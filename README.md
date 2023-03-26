@@ -21,9 +21,11 @@ Three datasets were utilized for evaluation:
 2. MERFISH profile of mouse hypothalamic preoptic region [(Moffitt _et al_., 2018)](https://www.science.org/doi/10.1126/science.aau5324)
 3. scMultiSim simulated dataset [(Li _et al_., 2022)](https://www.biorxiv.org/content/10.1101/2022.10.15.512320v1)
 
-All of the preprocessed data are organized into pandas dataframes and are located in the ./data/ folder. These dataframes can be used directly as input to Clarify.
+All of the preprocessed data are organized into pandas dataframes and are located at [./data](./data). These dataframes can be used directly as input to Clarify.
 
 ## Demos & Results
+
+To reproduce results, make sure you either run Clarify's preprocessing or copy the contents from [this dropbox link](https://www.dropbox.com/sh/sioss3ig3pwu0it/AACrcmeIDnPjF2jlJtGpLw_oa?dl=0). Download this directory and copy each "1_preprocessing_output" folder into the respective folders (["./out/seqfish"](./out/seqfish), ["./out/merfish"](./out/merfish), ["./out/scmultisim_final"](./out/scmultisim_final)) in your cloned repository. 
 
 To visualize results (from pretrained Clarify models) and play around with demos, use the following interactive notebooks:
 1. [preprocessing.ipynb](preprocessing.ipynb)
@@ -58,7 +60,7 @@ For example, if you wanted to run Clarify (both preprocessing and training) on t
 ```
 python main.py -m preprocess,train -i ../data/seqFISH/seqfish_dataframe.csv -o [OUTPUT FOLDER PATH] -s [STUDYNAME] -t 0.3 
 ```
-Since we have already preprocessed these datasets, you can also skip that step by running the following command. Note that you should use the specified out folder (not your own) as that is where the preprocessed results are stored. You can still set your desired studyname.
+Since we have already preprocessed these datasets (link provided above), you can also skip that step by running the following command. Note that you should use the specified out folder (not your own) as that is where the preprocessed results are stored. You can still set your desired studyname.
 ```
 python main.py -m train -i ../data/seqFISH/seqfish_dataframe.csv -o ../out/seqfish/ -s [STUDYNAME] -t 0.3 
 ```
