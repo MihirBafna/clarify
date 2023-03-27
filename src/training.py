@@ -136,8 +136,8 @@ def create_intracellular_gene_mask(num_cells, num_genespercell):
       
       
 def train_gae(data, model, hyperparameters):
-  wandb.init()
-  wandb.config = hyperparameters
+  # wandb.init()
+  # wandb.config = hyperparameters
   num_epochs = hyperparameters["num_epochs"]
   optimizer = hyperparameters["optimizer"][0]
   criterion = hyperparameters["criterion"]
@@ -201,7 +201,7 @@ def train_gae(data, model, hyperparameters):
       test_ap_scores.append(test_ap)
 
       pbar.set_postfix(train_loss=loss.item(), train_recon_loss = recon_loss.item(),test_recon_loss =test_recon_loss.item())
-      wandb.log({'Epoch':epoch, 'Total Train Loss': loss, 'Train Reconstruction Loss': recon_loss, "Train Intracellular Penalty Loss": intracellular_penalty_loss, "Train Reconstruction AUROC":auroc, "Train Reconstruction AP":ap , "Test Reconstruction Loss":test_recon_loss, "Test Reconstruction AUROC":test_rocauc, "Test Reconstruction AP":test_ap, "Test AUPRC":test_auprc })
+      # wandb.log({'Epoch':epoch, 'Total Train Loss': loss, 'Train Reconstruction Loss': recon_loss, "Train Intracellular Penalty Loss": intracellular_penalty_loss, "Train Reconstruction AUROC":auroc, "Train Reconstruction AP":ap , "Test Reconstruction Loss":test_recon_loss, "Test Reconstruction AUROC":test_rocauc, "Test Reconstruction AP":test_ap, "Test AUPRC":test_auprc })
 
   metrics_df = pd.DataFrame({"Epoch":range(num_epochs), f"CLARIFY Test AP": test_ap_scores, f"CLARIFY Test ROC": test_roc_scores, f"CLARIFY Test AUPRC": test_auprc_scores})
 
