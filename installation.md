@@ -9,7 +9,7 @@ Now, activate your environment and utilize the requirements.txt file to install 
 conda activate clarify
 pip install -r requirements.txt
 ```
-To install pytorch dependencies, we will use the following pip wheels
+After that installation make sure you have numpy==1.23.0 installed not numpy==1.23.5, and reinstall with pip if necessary. Now, to install pytorch dependencies, we will use the following pip wheels.
 ```
 pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116
 ```
