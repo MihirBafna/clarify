@@ -12,7 +12,7 @@ Make sure to clone this repository along with the submodules as follows:
 git clone --recurse-submodules https://github.com/MihirBafna/clarify.git
 cd clarify
 ```
-To install dependencies with conda (recommended), use either the requirements.txt or the environment.yml. Some manual installation (via pip) will also be required.
+To install dependencies with conda (recommended), follow the instructions provided in the [installation.md](./installation.md)
 
 ## Data
 Three datasets were utilized for evaluation:
