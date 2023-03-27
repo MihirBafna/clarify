@@ -129,7 +129,6 @@ smart-open==6.2.0
 smfishHmrf==1.3.3
 smmap==5.0.0
 snowballstemmer==2.2.0
-spaotsc==0.2
 Sphinx==5.1.1
 sphinxcontrib-applehelp==1.0.2
 sphinxcontrib-devhelp==1.0.2
