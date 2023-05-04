@@ -1,7 +1,7 @@
 # $\definecolor{teal}{RGB}{48, 152, 176} \Huge\color{teal}{\textsf{Clarify}}$
 $\large\textsf{Multi-level graph autoencoder (GAE) to clarify:}$
 
-$\large\textsf{(1.) {\color{teal}{c}}ell cel}\textsf{{\color{teal}{l}} interactions } \textsf{{\color{teal}{a}}nd} \textsf{ (2.) gene {\color{teal}{r}}egulatory network } \textsf{{\color{teal}{i}}nference } \textsf{{\color{teal}{f}}rom } \textsf{spatiall{\color{teal}{y}} resolved transcriptomics.}$
+$\large\textsf{(1) {\color{teal}{c}}ell cel}\textsf{{\color{teal}{l}} interactions } \textsf{{\color{teal}{a}}nd} \textsf{ (2) gene {\color{teal}{r}}egulatory network } \textsf{{\color{teal}{i}}nference } \textsf{{\color{teal}{f}}rom } \textsf{spatiall{\color{teal}{y}} resolved transcriptomics.}$
 
 ![cci](./data/cover_image.png)
 
