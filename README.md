@@ -2,8 +2,15 @@
 $\large\textsf{Multi-level graph autoencoder (GAE) to clarify:}$
 
 $\large\textsf{(1) {\color{teal}{c}}ell cel}\textsf{{\color{teal}{l}} interactions } \textsf{{\color{teal}{a}}nd} \textsf{ (2) gene {\color{teal}{r}}egulatory network } \textsf{{\color{teal}{i}}nference } \textsf{{\color{teal}{f}}rom } \textsf{spatiall{\color{teal}{y}} resolved transcriptomics.}$ -->
+<p align="center">
+<img src="./data/clarifylogo.png" width="70%" height="70%">
+<hr></hr>
+</p>
+<p align="center">
+<img src="./data/cover_image.png" width="80%" height="80%">
+<hr></hr>
+</p>
 
-![cci](./data/cover_image.png)
 
 ## Installation & Setup
 
