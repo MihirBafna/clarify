@@ -72,3 +72,17 @@ Since we have already preprocessed these datasets (link provided above), you can
 ```
 python main.py -m train -i ../data/seqFISH/seqfish_dataframe.csv -o ../out/seqfish/ -s [STUDYNAME] -t 0.3 
 ```
+
+## Cite
+```
+@Article{pmid37387180,
+   Author="Bafna, M.  and Li, H.  and Zhang, X. ",
+   Title="{{C}{L}{A}{R}{I}{F}{Y}: cell-cell interaction and gene regulatory network refinement from spatially resolved transcriptomics}",
+   Journal="Bioinformatics",
+   Year="2023",
+   Volume="39",
+   Number="Supplement_1",
+   Pages="i484-i493",
+   Month="Jun"
+}
+```
