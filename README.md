@@ -12,7 +12,7 @@ $\large\textsf{(1) {\color{teal}{c}}ell cel}\textsf{{\color{teal}{l}} interactio
 </p>
 
 ## Article
-Check out our <em>ISMB'2023</em> paper [here](https://academic.oup.com/bioinformatics/article/39/Supplement_1/i484/7210503).
+Check out our <em>ISMB'2023</em> and <em>Bioinformatics</em> paper [here](https://academic.oup.com/bioinformatics/article/39/Supplement_1/i484/7210503).
 
 ## Installation & Setup
 
