@@ -1,1 +1,6 @@
-*.ipynb linguist-generated=true
+test.ipynb linguist-generated=true
+preprocessing.ipynb linguist-generated=true
+evaluation.ipynb linguist-generated=true
+development.ipynb linguist-generated=true
+genie3_evaluation.ipynb linguist-generated=true
+
